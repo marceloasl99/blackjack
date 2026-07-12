@@ -65,6 +65,15 @@
 </main>
 <script>
 "use strict";
+/*
+  Generic storage mode:
+  - "auto": always saves locally and uses the PHP/file backend when available.
+  - "local": browser-only localStorage mode.
+  - "server": requires save-score.php and get-scores.php.
+*/
+const STORAGE_CONFIG={mode:"auto",apiBaseUrl:"."};
+let serverStorageAvailable=null;
+let remoteScoreSaved=false;
 const START_BALANCE=10000,MIN_BET=100;
 const SUITS=[{s:"♥",r:1},{s:"♦",r:1},{s:"♣",r:0},{s:"♠",r:0}],RANKS=["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
 let deck=[],player=[],dealer=[],phase="betting",bet=0,round=0;
@@ -78,22 +87,76 @@ const blackjack=h=>h.length===2&&score(h)===21;
 function card(c,i,hidden){const d=document.createElement("div");d.className=hidden?"card back":`card${c.r?" red":""}`;d.style.setProperty("--r",`${i%2?1.5:-1.5}deg`);d.style.animationDelay=`${i*50}ms`;if(!hidden)d.innerHTML=`<div class="corner">${c.rank}<span>${c.s}</span></div><div class="middle">${c.s}</div><div class="corner bottom">${c.rank}<span>${c.s}</span></div>`;return d}
 function hand(node,h,hide){node.replaceChildren();if(!h.length){const p=document.createElement("div");p.className="placeholder";p.textContent="♠";node.append(p)}else h.forEach((c,i)=>node.append(card(c,i,hide&&i===1)))}
 function save(){localStorage.setItem("bjProfile",JSON.stringify(profile));if(profile.name){const found=board.find(x=>x.name.toLowerCase()===profile.name.toLowerCase());const data={name:profile.name,balance:profile.balance,wins:profile.wins};if(found)Object.assign(found,data);else board.push(data);board.sort((a,b)=>b.balance-a.balance||b.wins-a.wins);board=board.slice(0,50);localStorage.setItem("bjLeaderboard",JSON.stringify(board))}}
+async function serverIsAvailable(){
+  if(STORAGE_CONFIG.mode==="local")return false;
+  if(serverStorageAvailable!==null)return serverStorageAvailable;
+  try{
+    const response=await fetch(`${STORAGE_CONFIG.apiBaseUrl}/get-scores.php?ping=1`,{cache:"no-store"});
+    serverStorageAvailable=response.ok;
+  }catch(error){serverStorageAvailable=false}
+  return serverStorageAvailable;
+}
+async function saveScoreToServer(){
+  if(!profile.name||remoteScoreSaved)return false;
+  const available=await serverIsAvailable();
+  if(!available){
+    if(STORAGE_CONFIG.mode==="server")msg("Server storage is unavailable.");
+    return false;
+  }
+  try{
+    const response=await fetch(`${STORAGE_CONFIG.apiBaseUrl}/save-score.php`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        session_id:profile.sessionId||String(Date.now()),
+        name:profile.name,
+        balance:Math.max(0,Math.round(profile.balance)),
+        wins:Math.max(0,Math.round(profile.wins)),
+        losses:Math.max(0,Math.round(profile.losses)),
+        draws:Math.max(0,Math.round(profile.draws))
+      })
+    });
+    const result=await response.json();
+    if(!response.ok||!result.success)throw new Error(result.error||"Save failed");
+    remoteScoreSaved=true;
+    await loadServerLeaderboard();
+    return true;
+  }catch(error){
+    console.warn("Shared leaderboard unavailable; local data was preserved.",error);
+    serverStorageAvailable=false;
+    return false;
+  }
+}
+async function loadServerLeaderboard(){
+  if(!(await serverIsAvailable()))return false;
+  try{
+    const response=await fetch(`${STORAGE_CONFIG.apiBaseUrl}/get-scores.php`,{cache:"no-store"});
+    if(!response.ok)throw new Error("Load failed");
+    const remote=await response.json();
+    if(Array.isArray(remote)){
+      board=remote.map(row=>({name:row.name,balance:Number(row.balance)||0,wins:Number(row.wins)||0,losses:Number(row.losses)||0,draws:Number(row.draws)||0}));
+      renderBoard();
+      return true;
+    }
+  }catch(error){console.warn("Unable to load shared leaderboard.",error);serverStorageAvailable=false}
+  return false;
+}
 function renderBoard(){el.lb.replaceChildren();if(!board.length){el.lb.innerHTML='<li><span>—</span><b>No players yet</b><span>$0</span></li>';return}board.forEach((x,i)=>{const li=document.createElement("li");li.innerHTML=`<span>${i+1}</span><b></b><span>${money(x.balance)}</span>`;li.querySelector("b").textContent=x.name;el.lb.append(li)})}
 function render(){const play=phase==="playing";hand(el.pc,player,false);hand(el.dc,dealer,play);el.ps.textContent=player.length?score(player):0;el.ds.textContent=play&&dealer.length>1?"?":dealer.length?score(dealer):0;el.balance.textContent=money(profile.balance);el.currentBet.textContent=money(bet);el.betPlaced.textContent=money(bet);el.hit.disabled=!play;el.stand.disabled=!play;el.deal.disabled=play||bet<MIN_BET||!profile.name;document.querySelectorAll(".chip,#clearBet").forEach(x=>x.disabled=play);el.name.value=profile.name;renderBoard()}
 function msg(t){el.message.textContent=t}
 function addBet(n){if(phase==="playing")return;if(profile.balance-bet<n)return msg("Not enough balance for that chip.");bet+=n;msg(`Bet ${money(bet)} ready. Press Deal.`);render()}
 function uniqueName(raw){const base=raw.trim().replace(/\s+/g," ");const names=new Set(board.map(x=>x.name.toLowerCase()));if(!names.has(base.toLowerCase()))return base;let i=1;while(names.has(`${base} (${i})`.toLowerCase()))i++;return `${base} (${i})`}
-function beginPlayer(raw){const clean=raw.trim().replace(/\s+/g," ");if(!clean)return false;const name=uniqueName(clean);profile={name,balance:START_BALANCE,wins:0,losses:0,draws:0,best:START_BALANCE};bet=0;phase="betting";player=[];dealer=[];save();msg(`Welcome, ${name}. Place your bet.`);render();return name}
+function beginPlayer(raw){const clean=raw.trim().replace(/\s+/g," ");if(!clean)return false;const name=uniqueName(clean);profile={name,balance:START_BALANCE,wins:0,losses:0,draws:0,best:START_BALANCE,sessionId:(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2))};remoteScoreSaved=false;bet=0;phase="betting";player=[];dealer=[];save();msg(`Welcome, ${name}. Place your bet.`);render();return name}
 function setName(){const name=beginPlayer(el.name.value);if(!name)return msg("Please enter a player name.")}
 function deal(){if(!profile.name)return msg("Save your player name first.");if(bet<MIN_BET)return msg(`The minimum bet is ${money(MIN_BET)}.`);if(bet>profile.balance)return msg("Your bet is higher than your balance.");round++;const id=round;profile.balance-=bet;deck=makeDeck();player=[deck.pop(),deck.pop()];dealer=[deck.pop(),deck.pop()];phase="playing";msg("Your turn: Hit or Stand?");render();const pb=blackjack(player),db=blackjack(dealer);if(pb||db)setTimeout(()=>{if(id!==round||phase!=="playing")return;if(pb&&db)finish("draw","Both have Blackjack — push!",bet);else if(pb)finish("win","Blackjack! You win 3:2.",bet*2.5);else finish("loss","Dealer has Blackjack.",0)},600)}
 function hit(){if(phase!=="playing")return;player.push(deck.pop());render();const v=score(player);if(v>21)finish("loss",`Bust with ${v}. Dealer wins.`,0);else if(v===21){msg("21! Dealer is playing.");setTimeout(stand,350)}else msg(`You have ${v}. Hit or Stand?`)}
 function stand(){if(phase!=="playing")return;while(score(dealer)<17)dealer.push(deck.pop());const p=score(player),d=score(dealer);if(d>21)finish("win",`Dealer busts with ${d}. You win!`,bet*2);else if(p>d)finish("win",`You win ${p} to ${d}!`,bet*2);else if(p<d)finish("loss",`Dealer wins ${d} to ${p}.`,0);else finish("draw",`Push at ${p}.`,bet)}
-function finish(result,text,payout){if(phase!=="playing")return;phase="finished";profile.balance+=payout;if(result==="win")profile.wins++;else if(result==="loss")profile.losses++;else profile.draws++;profile.best=Math.max(profile.best,profile.balance);msg(text);bet=0;save();render();if(profile.balance<MIN_BET)setTimeout(()=>{$("gameOverText").textContent=`${profile.name} finished with ${money(profile.balance)} and cannot place the minimum ${money(MIN_BET)} bet. The result has been saved.`;$("gameOverOverlay").hidden=false},450)}
-document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>addBet(+b.dataset.chip));$("clearBet").onclick=()=>{if(phase!=="playing"){bet=0;msg("Bet cleared.");render()}};$("saveName").onclick=setName;el.deal.onclick=deal;el.hit.onclick=hit;el.stand.onclick=stand;$("resetProfile").onclick=()=>{profile={name:profile.name,balance:START_BALANCE,wins:0,losses:0,draws:0,best:START_BALANCE};bet=0;phase="betting";player=[];dealer=[];save();msg("Profile reset. Your balance is $10,000.");render()};document.addEventListener("keydown",e=>{if(e.repeat||document.activeElement.tagName==="INPUT")return;const k=e.key.toLowerCase();if(k==="h")hit();if(k==="s")stand();if(k==="d")deal()});
+function finish(result,text,payout){if(phase!=="playing")return;phase="finished";profile.balance+=payout;if(result==="win")profile.wins++;else if(result==="loss")profile.losses++;else profile.draws++;profile.best=Math.max(profile.best,profile.balance);msg(text);bet=0;save();render();if(profile.balance<MIN_BET)setTimeout(async()=>{await saveScoreToServer();$("gameOverText").textContent=`${profile.name} finished with ${money(profile.balance)} and cannot place the minimum ${money(MIN_BET)} bet. The result has been saved.`;$("gameOverOverlay").hidden=false},450)}
+document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>addBet(+b.dataset.chip));$("clearBet").onclick=()=>{if(phase!=="playing"){bet=0;msg("Bet cleared.");render()}};$("saveName").onclick=setName;el.deal.onclick=deal;el.hit.onclick=hit;el.stand.onclick=stand;$("resetProfile").onclick=async()=>{await saveScoreToServer();bet=0;phase="betting";player=[];dealer=[];$("welcomeName").value="";$("welcomeOverlay").hidden=false;setTimeout(()=>$("welcomeName").focus(),0)};document.addEventListener("keydown",e=>{if(e.repeat||document.activeElement.tagName==="INPUT")return;const k=e.key.toLowerCase();if(k==="h")hit();if(k==="s")stand();if(k==="d")deal()});
 $("welcomeForm").onsubmit=e=>{e.preventDefault();const raw=$("welcomeName").value.trim();if(!raw){$("welcomeError").textContent="Please enter a player name.";return}const name=beginPlayer(raw);$("welcomeError").textContent="";$("welcomeOverlay").hidden=true;if(name!==raw)msg(`Welcome, ${name}. That name already existed, so a unique suffix was added.`)};
 $("newPlayerBtn").onclick=()=>{$("gameOverOverlay").hidden=true;$("welcomeName").value="";$("welcomeOverlay").hidden=false;setTimeout(()=>$("welcomeName").focus(),0)};
 $("viewRankingBtn").onclick=()=>{$("gameOverOverlay").hidden=true};
-render();setTimeout(()=>$("welcomeName").focus(),100);
+render();loadServerLeaderboard();setTimeout(()=>$("welcomeName").focus(),100);
 </script>
 </body>
 </html>
