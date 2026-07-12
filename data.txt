@@ -1,1 +1,1 @@
-
+# Blackjack scores - one JSON object per line.
