@@ -1,19 +1,21 @@
 # ♠ Blackjack Club
 
-A modern, responsive Blackjack game built with **HTML5, CSS3, and vanilla JavaScript**. Play against the dealer, manage a virtual bankroll, place bets, and compete on a browser-based local leaderboard.
+A modern, responsive Blackjack game built with **HTML5, CSS3, vanilla JavaScript, and an optional PHP file-storage backend**.
 
-> **For entertainment and educational purposes only.** This project uses virtual credits and does not involve real money, deposits, withdrawals, or prizes.
+Play against the dealer, manage a virtual bankroll, place bets, and compete on either a **local browser leaderboard** or a **shared leaderboard stored in `data.txt`** when the project is hosted on a PHP-enabled server.
 
-## 🎮 Play Online
+> **Experimental and educational project.** The game uses virtual credits only. It does not involve real money, deposits, withdrawals, prizes, or gambling services.
 
-**[Open Blackjack Club](https://marceloasl99.github.io/blackjack/)**
+## 🎮 Live Demo
 
-No installation or account is required. Open the link in a modern browser, enter a player name, and start playing.
+**[Play Blackjack Club on GitHub Pages](https://marceloasl99.github.io/blackjack/)**
+
+On GitHub Pages, the game works in local-storage mode because GitHub Pages does not execute PHP. Each browser therefore keeps its own local leaderboard.
 
 ## ✨ Features
 
-- Modern casino-inspired interface
-- Fully responsive layout for desktop, tablet, and mobile
+- Casino-inspired responsive interface
+- Welcome page with game description and basic rules
 - Starting balance of **$10,000** in virtual credits
 - Minimum bet of **$100**
 - Betting chips for **$100**, **$500**, **$1,000**, and **$5,000**
@@ -23,13 +25,16 @@ No installation or account is required. Open the link in a modern browser, enter
 - Dealer automatically draws until reaching at least 17
 - Correct Ace handling as either 1 or 11
 - Hidden dealer card during the player's turn
-- Automatic detection of Blackjack, bust, win, loss, and push
+- Detection of Blackjack, bust, win, loss, and push
 - Automatic session ending when the balance is below the minimum bet
-- Local leaderboard saved in the browser
-- Duplicate player names receive suffixes such as `(1)`, `(2)`, and `(3)`
-- Animated card dealing
+- Option to restart with a new **$10,000** session
+- Duplicate names receive suffixes such as `(1)`, `(2)`, and `(3)`
+- Local leaderboard with browser persistence
+- Optional shared `data.txt` leaderboard through PHP
+- Automatic local fallback when the PHP backend is unavailable
+- Animated cards and touch-friendly controls
 - Keyboard shortcuts
-- No frameworks, dependencies, build tools, or backend required
+- No frontend framework, package manager, or build process required
 
 ## 🕹️ How to Play
 
@@ -44,11 +49,11 @@ No installation or account is required. Open the link in a modern browser, enter
 
 ### Objective
 
-The goal is to beat the dealer by:
+The player wins by:
 
-- Getting a hand value closer to 21 than the dealer;
-- Reaching 21 with the first two cards, called **Blackjack**;
-- Or remaining at 21 or below while the dealer goes over 21.
+- Having a hand closer to 21 than the dealer;
+- Getting 21 with the first two cards, called **Blackjack**;
+- Or staying at 21 or below while the dealer goes over 21.
 
 If the player's hand exceeds 21, the player busts and loses the round.
 
@@ -58,10 +63,10 @@ If the player's hand exceeds 21, the player busts and loses the round.
 |---|---:|
 | Blackjack | 3:2 |
 | Standard win | 1:1 |
-| Push | Bet returned |
+| Push | Original bet returned |
 | Loss or bust | Bet lost |
 
-All balances and bets are simulated virtual credits with no monetary value.
+All balances and bets are simulated credits with no monetary value.
 
 ## ⌨️ Keyboard Shortcuts
 
@@ -71,82 +76,227 @@ All balances and bets are simulated virtual credits with no monetary value.
 | `H` | Hit |
 | `S` | Stand |
 
-## 🏆 Leaderboard and Data Storage
+## 💾 Storage Modes
 
-The leaderboard uses the browser's `localStorage` feature.
+The project uses a generic automatic storage configuration in `index.html`:
 
-This means:
+```javascript
+const STORAGE_CONFIG = {
+  mode: "auto",
+  apiBaseUrl: "."
+};
+```
 
-- Results remain available after refreshing or reopening the page;
-- Previously completed player sessions remain in the local ranking;
-- Duplicate names are preserved as new entries using suffixes;
-- Ranking data is specific to the current browser and device;
-- Clearing browser data removes the locally saved leaderboard;
-- Players using different devices do not share the same ranking.
+### `auto` mode — recommended
 
-### Why not `data.txt`?
+- Always keeps browser storage available as a fallback;
+- Detects whether `get-scores.php` is available;
+- Uses the shared PHP/`data.txt` leaderboard when possible;
+- Continues working locally if PHP is unavailable.
 
-GitHub Pages provides static hosting. Code running in a visitor's browser can read files from the repository, but it cannot securely modify or append results to a repository file such as `data.txt`.
+### `local` mode
 
-A shared global leaderboard would require an external backend or database, such as Supabase, Firebase, Cloudflare D1, or a custom API.
+To force browser-only storage:
 
-## 🧱 Technology Stack
+```javascript
+const STORAGE_CONFIG = {
+  mode: "local",
+  apiBaseUrl: "."
+};
+```
 
-- **HTML5** — semantic page structure
-- **CSS3** — responsive layout, card design, animations, and casino-style interface
-- **Vanilla JavaScript** — game rules, state management, betting, sessions, and leaderboard
-- **LocalStorage API** — persistent local player results
-- **GitHub Pages** — static website hosting
+This mode works on GitHub Pages, static hosting, and when opening the project locally. Rankings are specific to each browser and device.
+
+### `server` mode
+
+To require the PHP backend:
+
+```javascript
+const STORAGE_CONFIG = {
+  mode: "server",
+  apiBaseUrl: "."
+};
+```
+
+Use this mode only when `save-score.php`, `get-scores.php`, and writable persistent storage are available.
+
+## 🌐 Hosting Compatibility
+
+| Environment | Game | Local leaderboard | Shared `data.txt` leaderboard |
+|---|---:|---:|---:|
+| GitHub Pages | ✅ | ✅ | ❌ |
+| Static hosting | ✅ | ✅ | ❌ |
+| Open `index.html` locally | ✅ | ✅ | ❌ |
+| Traditional PHP hosting | ✅ | ✅ | ✅ |
+| VPS with PHP and persistent disk | ✅ | ✅ | ✅ |
+| Serverless host with temporary filesystem | ✅ | ✅ | Not recommended |
+
+GitHub Pages serves static files and does not execute the PHP endpoints. The `data.txt` file can be stored in the repository, but it cannot be updated by visitors on GitHub Pages.
 
 ## 📁 Project Structure
 
 ```text
 blackjack/
-├── index.html          # Complete game application
+├── index.html          # Complete game and automatic storage client
+├── save-score.php      # Validates and appends completed sessions
+├── get-scores.php      # Reads, sorts, and returns the leaderboard
+├── data.txt            # One JSON score object per line
+├── INSTALL.txt         # Short deployment instructions
 ├── README.md           # Project documentation
-├── old_blackjack.html  # Previous version kept for reference
-└── data.txt            # Not used for live score persistence
+└── old_blackjack.html  # Optional previous version kept for reference
 ```
 
-The complete application is contained in `index.html`, which makes the project easy to run and deploy.
+## 🚀 Deploying on GitHub Pages
 
-## 🚀 Running Locally
+Upload at least these files:
 
-No installation is required.
-
-1. Download or clone the repository:
-
-```bash
-git clone https://github.com/marceloasl99/blackjack.git
+```text
+index.html
+README.md
 ```
 
-2. Open the project directory:
+You may also keep the PHP and data files in the repository for future migration:
 
-```bash
-cd blackjack
+```text
+save-score.php
+get-scores.php
+data.txt
+INSTALL.txt
 ```
 
-3. Open `index.html` in a modern web browser.
+GitHub Pages will ignore the PHP functionality and the game will automatically use browser storage.
 
-You can also download only `index.html` and open it directly.
+### GitHub Pages configuration
 
-## 🌐 Deploying with GitHub Pages
-
-1. Upload `index.html` to the root of the repository.
-2. Open the repository on GitHub.
-3. Go to **Settings → Pages**.
-4. Under **Build and deployment**, select:
+1. Open the repository on GitHub.
+2. Go to **Settings → Pages**.
+3. Under **Build and deployment**, select:
    - **Source:** Deploy from a branch
    - **Branch:** `main`
    - **Folder:** `/ (root)`
-5. Save the configuration.
-6. Wait for GitHub Pages to publish the site.
+4. Save the configuration.
+5. Wait for the deployment to finish.
 
 The project will be available at:
 
 ```text
 https://marceloasl99.github.io/blackjack/
 ```
+
+## 🐘 Deploying on PHP Hosting
+
+Requirements:
+
+- PHP 8.0 or newer;
+- Persistent disk storage;
+- Permission for the PHP process to write to `data.txt`;
+- All application files in the same public directory.
+
+Example:
+
+```text
+public_html/
+├── index.html
+├── save-score.php
+├── get-scores.php
+├── data.txt
+├── README.md
+└── INSTALL.txt
+```
+
+A common permission for `data.txt` is:
+
+```text
+664
+```
+
+The exact permission depends on the hosting provider and ownership configuration. Avoid `777` except for short tests in an isolated environment.
+
+### Backend test
+
+Open:
+
+```text
+https://your-domain.example/get-scores.php?ping=1
+```
+
+Expected response:
+
+```json
+{
+  "success": true,
+  "storage": "data.txt"
+}
+```
+
+When this endpoint is available, `auto` mode uses the shared leaderboard.
+
+## 🗃️ `data.txt` Format
+
+The file uses JSON Lines: one complete JSON object per line.
+
+Example:
+
+```json
+{"session_id":"550e8400-e29b-41d4-a716-446655440000","name":"Player","balance":12400,"wins":5,"losses":2,"draws":1,"created_at":"2026-07-12T18:30:00Z"}
+```
+
+The PHP backend:
+
+- Validates incoming values;
+- Uses an exclusive file lock while writing;
+- Prevents duplicate saves using `session_id`;
+- Returns the top 100 scores;
+- Sorts primarily by balance and then by wins.
+
+## 🔌 PHP API
+
+### Read scores
+
+```http
+GET /get-scores.php
+```
+
+### Test availability
+
+```http
+GET /get-scores.php?ping=1
+```
+
+### Save a completed session
+
+```http
+POST /save-score.php
+Content-Type: application/json
+```
+
+Example body:
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Player",
+  "balance": 12400,
+  "wins": 5,
+  "losses": 2,
+  "draws": 1
+}
+```
+
+## 🔒 Security and Limitations
+
+This file-based backend is suitable for an experimental project, demonstration, or low-traffic private deployment. It is not appropriate for real-money or trusted competitive use.
+
+Important limitations:
+
+- Scores originate in the browser and can be manipulated;
+- `data.txt` can grow indefinitely unless it is periodically archived;
+- A public endpoint may receive automated or abusive submissions;
+- File locking reduces simultaneous-write issues but is not a replacement for a database;
+- Some serverless hosts use temporary filesystems and may erase `data.txt`;
+- Publicly serving `data.txt` exposes its complete contents.
+
+For a production leaderboard, use server-side game validation, rate limiting, authentication, and a database.
 
 ## 🧠 Game Logic
 
@@ -158,62 +308,70 @@ Card values:
 - Jack, Queen, and King are worth 10;
 - Ace is worth 11 when possible, or 1 when 11 would cause a bust.
 
-The dealer keeps drawing cards while the dealer's hand value is below 17.
+The dealer continues drawing while the dealer's hand value is below 17.
 
-## 🔒 Privacy
+## 🧱 Technology Stack
 
-- No personal account is created;
-- No information is sent to a server by the game;
-- Player names and results stay in the current browser;
-- The project does not collect payment or financial information;
-- The player can remove saved data by clearing the browser's site storage.
+- **HTML5** — semantic page structure
+- **CSS3** — responsive design, cards, animations, and casino interface
+- **Vanilla JavaScript** — gameplay, state, betting, sessions, and storage fallback
+- **LocalStorage API** — local browser persistence
+- **PHP** — optional score read/write endpoints
+- **JSON Lines** — experimental file-based leaderboard storage
+- **GitHub Pages** — static demo hosting
 
-Players should avoid entering sensitive or personally identifiable information as a player name.
+## 🧪 Running Locally
+
+### Static/local mode
+
+Open `index.html` directly in a modern browser. The game will use local browser storage.
+
+### Testing the PHP backend locally
+
+From the project directory, run:
+
+```bash
+php -S 127.0.0.1:8000
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000/
+```
+
+The built-in PHP server is intended for development and testing, not production use.
 
 ## 🛠️ Possible Future Improvements
 
-- Shared online leaderboard using a database
+- Database-backed shared leaderboard
+- Rate limiting and anti-abuse controls
+- Server-side score validation
 - Double Down action
 - Split pairs
 - Insurance
-- Multiple deck modes
-- Sound effects with a mute control
-- Round history and statistics dashboard
+- Multiple-deck modes
+- Sound effects and mute controls
+- Round history and statistics
 - Progressive Web App support
-- Automated tests for game rules
-- Optional difficulty and table-rule settings
+- Automated game-rule tests
 
 ## 🤝 Contributing
 
 Contributions, bug reports, and improvement suggestions are welcome.
 
 1. Fork the repository.
-2. Create a feature branch:
-
-```bash
-git checkout -b feature/my-improvement
-```
-
-3. Commit the changes:
-
-```bash
-git commit -m "Add my improvement"
-```
-
-4. Push the branch:
-
-```bash
-git push origin feature/my-improvement
-```
-
+2. Create a feature branch.
+3. Commit the changes.
+4. Push the branch.
 5. Open a Pull Request.
 
 ## 📄 License
 
-No license file is currently included in this repository. Until a license is added, the source code remains under the default copyright rules.
+No license file is currently included. Until a license is added, the project remains under default copyright rules.
 
-If the project is intended for public reuse or contribution, consider adding a license such as the MIT License.
+If public reuse and contribution are intended, consider adding a license such as the MIT License.
 
 ---
 
-Built as a lightweight, dependency-free browser project for learning and demonstrating HTML, CSS, JavaScript, responsive design, state management, and game logic.
+Built as a lightweight experimental browser project for demonstrating responsive UI design, Blackjack rules, JavaScript state management, local persistence, PHP endpoints, and file-based storage.
