@@ -1,0 +1,24 @@
+BLACKJACK FILE STORAGE - INSTALLATION
+
+Files:
+- index.html
+- save-score.php
+- get-scores.php
+- data.txt
+
+GitHub Pages:
+- The game works with localStorage fallback.
+- PHP does not run, so data.txt will not be updated.
+
+Traditional PHP hosting:
+1. Upload all four files to the same public root directory.
+2. Confirm PHP 8.0+ is enabled.
+3. Ensure the PHP process can write to data.txt.
+4. Recommended file permission: 664 (hosting-dependent).
+5. Open get-scores.php?ping=1 and confirm a JSON success response.
+6. Open index.html and play.
+
+The frontend uses storage mode "auto": localStorage always remains available, and the shared data.txt leaderboard is used automatically when the PHP endpoints respond.
+
+Security note:
+This is an experimental project. Browser-submitted scores can be manipulated. Do not use this design for real money or trusted competitive results.
